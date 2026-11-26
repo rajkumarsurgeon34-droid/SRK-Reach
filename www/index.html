@@ -51,6 +51,7 @@
     <header class="bar">
       <button class="icon back">←</button>
       <h2 id="det-src">Reader</h2>
+      <button class="icon" id="det-save" title="Save as Word / PDF">💾</button>
       <button class="icon" id="det-copy" title="Copy">📄</button>
       <button class="icon" id="det-open" title="Open in browser">↗️</button>
     </header>
@@ -67,6 +68,7 @@
     <header class="bar">
       <button class="icon back">←</button>
       <h2>✨ Answer</h2>
+      <button class="icon" id="ans-save" title="Save as Word / PDF">💾</button>
       <button class="icon" id="ans-copy" title="Copy">📄</button>
     </header>
     <div class="scroll" id="ans-body"></div>
@@ -134,6 +136,16 @@
         </select>
       </label>
 
+      <h3>Saving files</h3>
+      <div class="folder-row"><div class="grow"><div class="sub">Save folder</div><div id="s-folder">Not chosen yet</div></div><button class="btn small" id="s-folder-btn">Choose</button></div>
+      <label>Default format
+        <select id="s-fmt">
+          <option value="docx">Word (.docx)</option>
+          <option value="pdf">PDF</option>
+          <option value="txt">Text (.txt)</option>
+        </select>
+      </label>
+
       <h3>Reading</h3>
       <label>Text size
         <select id="s-font">
@@ -149,9 +161,36 @@
     </div>
   </section>
 
+  <!-- Save sheet -->
+  <div id="save-sheet" class="sheet-wrap hidden">
+    <div class="sheet">
+      <h3>💾 Save this</h3>
+      <div class="folder-row"><div class="grow"><div class="sub">Saving to</div><div id="sv-folder">Not chosen yet</div></div><button class="btn small" id="sv-folder-btn">Change</button></div>
+      <label class="check"><input type="checkbox" id="sv-ai" checked> Include AI summaries &amp; answers</label>
+      <div class="fmt-grid">
+        <button class="btn fmt" data-f="docx">📘 Word<br><small>.docx</small></button>
+        <button class="btn fmt" data-f="pdf">📕 PDF<br><small>.pdf</small></button>
+        <button class="btn fmt" data-f="txt">📄 Text<br><small>.txt</small></button>
+      </div>
+      <button class="text" id="sv-ask">Choose a different place for this file…</button>
+      <button class="btn ghost wide" id="sv-cancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Saved -->
+  <div id="saved-sheet" class="sheet-wrap hidden">
+    <div class="sheet">
+      <h3>✅ Saved</h3>
+      <p id="saved-text"></p>
+      <div class="row"><button class="btn primary" id="saved-open">Open</button><button class="btn" id="saved-ok">OK</button></div>
+    </div>
+  </div>
+
   <div id="loading" class="loading hidden"><div class="spinner"></div><p id="loading-text">Working…</p></div>
   <div id="toast" class="toast hidden"></div>
 </div>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="export.js"></script>
 <script src="sources.js"></script>
 <script src="app.js"></script>
 </body>

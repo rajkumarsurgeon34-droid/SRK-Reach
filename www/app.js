@@ -15,7 +15,7 @@
   const STORE = "srkreach.v1";
 
   // ---------- state ----------
-  const defaults = { provider: "gemini", geminiKey: "", geminiModel: "", deepseekKey: "", deepseekModel: "", githubToken: "", capLang: "en", aiLang: "English", font: "18" };
+  const defaults = { saveFolder: "", saveFolderName: "", format: "docx", provider: "gemini", geminiKey: "", geminiModel: "", deepseekKey: "", deepseekModel: "", githubToken: "", capLang: "en", aiLang: "English", font: "18" };
   let state = { settings: { ...defaults }, history: [], source: "web" };
   try {
     const s = JSON.parse(localStorage.getItem(STORE) || "null");
@@ -34,6 +34,7 @@
   }
   function back() { history.back(); }
   window.addEventListener("popstate", () => {
+    document.querySelectorAll(".sheet-wrap").forEach((w) => w.classList.add("hidden"));
     if (stack.length > 1) stack.pop();
     show(stack[stack.length - 1], false);
   });
@@ -220,7 +221,7 @@
     show("v-results");
   }
   function openDetail(it) {
-    current = it;
+    current = { ...it, summaries: [] };
     const info = srcInfo(it.source);
     $("det-src").textContent = info.icon + " " + info.label;
     $("det-body").innerHTML = '<div class="reader"><div id="det-ai"></div><h1>' + esc(it.title || "(untitled)") + "</h1>" +
@@ -230,6 +231,7 @@
     $("det-body").scrollTop = 0;
     show("v-detail");
   }
+  $("det-save").addEventListener("click", () => current && openSave(current));
   $("det-copy").addEventListener("click", () => current && copy((current.title ? current.title + "\n" : "") + (current.url ? current.url + "\n\n" : "") + current.text));
   $("det-open").addEventListener("click", () => current && openUrl(current.url));
 
@@ -244,6 +246,7 @@
         : "You summarise content for a busy doctor and founder. Give a 2-line overview, then the key points as bullets, then any useful takeaways. If it's a lecture or video transcript, list the main teaching points.";
       const prompt = "Title: " + (current.title || "") + "\nSource: " + (current.url || "") + "\n\nCONTENT:\n" + content + "\n\n" + (question ? "QUESTION: " + question : "Summarise this.");
       const out = await aiCall(system, prompt);
+      current.summaries = (current.summaries || []).concat([{ label: question ? "Q: " + question : "AI summary", text: out }]);
       box.innerHTML += '<div class="ai-box"><div class="lbl">' + (question ? "✨ " + esc(question) : "✨ Summary") + '</div><div class="md">' + md(out) + "</div></div>";
       $("det-body").scrollTop = 0;
     } catch (e) { toast(e.message); }
@@ -254,7 +257,7 @@
   $("det-q").addEventListener("keydown", (e) => { if (e.key === "Enter") $("det-ask").click(); });
 
   // ---------- Ask AI: search → read top results → answer with sources ----------
-  let lastAnswer = "";
+  let lastAnswer = "", lastAnswerDoc = null;
   async function ask() {
     const q = $("q").value.trim();
     if (!q) { toast("Type a question first"); return; }
@@ -279,6 +282,8 @@
         "QUESTION: " + q + "\n\nSOURCES (from " + R.SOURCES[src].label + "):\n\n" + ctx
       );
       remember(q, src, true);
+      lastAnswerDoc = { title: q, meta: "✨ Ask AI · " + R.SOURCES[src].label, text: "",
+        summaries: [{ label: "Answer", text: answer }, { label: "Sources", text: items.map((it, i) => "[" + (i + 1) + "] " + (it.title || "") + " — " + it.url).join("\n") }] };
       lastAnswer = answer + "\n\nSources:\n" + items.map((it, i) => "[" + (i + 1) + "] " + (it.title || "") + " — " + it.url).join("\n");
       $("ans-body").innerHTML = '<div class="reader"><h1>' + esc(q) + '</h1><div class="md">' + md(answer) + '</div><div class="sources"><div class="m">Sources</div>' +
         items.map((it, i) => '<a href="#" data-src="' + i + '">[' + (i + 1) + "] " + esc(it.title || it.url) + "</a>").join("") + "</div></div>";
@@ -295,6 +300,86 @@
     finally { loading(false); }
   }
   $("ans-copy").addEventListener("click", () => lastAnswer && copy(lastAnswer));
+  $("ans-save").addEventListener("click", () => lastAnswerDoc && openSave(lastAnswerDoc));
+
+  // ---------- save as Word / PDF / text into the chosen folder ----------
+  const X = window.SRKExport;
+  const Native = () => (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SrkSave) || null;
+  let saveDoc = null, lastSaved = null;
+  const folderLabel = () => state.settings.saveFolder ? "📁 " + (state.settings.saveFolderName || "Chosen folder") : "Not chosen yet — you'll pick it once";
+  function refreshFolder() {
+    $("sv-folder").textContent = folderLabel();
+    $("s-folder").textContent = folderLabel();
+    $("sv-folder-btn").textContent = state.settings.saveFolder ? "Change" : "Choose";
+    $("s-folder-btn").textContent = state.settings.saveFolder ? "Change" : "Choose";
+  }
+  function openSave(doc) {
+    saveDoc = doc;
+    refreshFolder();
+    $("sv-ai").closest("label").classList.toggle("hidden", !(doc.summaries || []).length || !doc.text);
+    $("sv-ai").checked = true;
+    document.querySelectorAll(".fmt").forEach((b) => b.classList.toggle("def", b.dataset.f === (state.settings.format || "docx")));
+    $("save-sheet").classList.remove("hidden");
+  }
+  const closeSheets = () => { $("save-sheet").classList.add("hidden"); $("saved-sheet").classList.add("hidden"); };
+  async function chooseFolder() {
+    const n = Native();
+    if (!n) { toast("Choosing a folder works in the Android app"); return false; }
+    try {
+      const r = await n.pickFolder();
+      state.settings.saveFolder = r.uri; state.settings.saveFolderName = r.name; save(); refreshFolder();
+      return true;
+    } catch (e) { if (e.code !== "CANCELLED") toast(e.message || "Couldn't use that folder"); return false; }
+  }
+  async function doSave(fmt, askPlace) {
+    if (!saveDoc) return;
+    const doc = { ...saveDoc, summaries: $("sv-ai").checked || !saveDoc.text ? saveDoc.summaries || [] : [] };
+    if (fmt === "pdf" && X.nonLatinShare(doc) > 0.15) { toast("PDF can't show Tamil/Hindi letters — saved as Word instead"); fmt = "docx"; }
+    const F = X.FORMATS[fmt];
+    const fileName = X.safeName(doc.title) + "." + F.ext;
+    let data;
+    try { data = X.b64(F.make(doc)); } catch (e) { toast(e.message); return; }
+    state.settings.format = fmt; save();
+    const n = Native();
+    if (!n) { // browser preview: plain download
+      const a = document.createElement("a");
+      a.href = "data:" + F.mime + ";base64," + data; a.download = fileName; a.click();
+      closeSheets(); toast("Downloaded " + fileName);
+      return;
+    }
+    let r;
+    try {
+      if (askPlace) r = await n.saveAs({ fileName, mimeType: F.mime, data });
+      else {
+        if (!state.settings.saveFolder && !(await chooseFolder())) return;
+        try { r = await n.saveToFolder({ folder: state.settings.saveFolder, fileName, mimeType: F.mime, data }); }
+        catch (e) {
+          if (e.code !== "NO_PERMISSION") throw e;
+          toast("Please choose the save folder again");
+          state.settings.saveFolder = ""; save();
+          if (!(await chooseFolder())) return;
+          r = await n.saveToFolder({ folder: state.settings.saveFolder, fileName, mimeType: F.mime, data });
+        }
+      }
+    } catch (e) { if (e.code !== "CANCELLED") toast(e.message || "Couldn't save"); return; }
+    lastSaved = { uri: r.uri, mimeType: F.mime };
+    $("save-sheet").classList.add("hidden");
+    $("saved-text").textContent = fileName + (askPlace ? "" : "\nin " + (r.folder || state.settings.saveFolderName || "your folder"));
+    $("saved-text").style.whiteSpace = "pre-line";
+    $("saved-sheet").classList.remove("hidden");
+  }
+  document.querySelectorAll(".fmt").forEach((b) => b.addEventListener("click", () => doSave(b.dataset.f, false)));
+  $("sv-ask").addEventListener("click", () => doSave(state.settings.format || "docx", true));
+  $("sv-folder-btn").addEventListener("click", chooseFolder);
+  $("s-folder-btn").addEventListener("click", chooseFolder);
+  $("sv-cancel").addEventListener("click", closeSheets);
+  $("save-sheet").addEventListener("click", (e) => { if (e.target.id === "save-sheet") closeSheets(); });
+  $("saved-ok").addEventListener("click", closeSheets);
+  $("saved-open").addEventListener("click", async () => {
+    closeSheets();
+    const n = Native();
+    if (n && lastSaved) try { await n.open(lastSaved); } catch (e) { toast(e.message || "No app can open it"); }
+  });
 
   // ---------- source check ----------
   async function runChecks() {
@@ -308,10 +393,11 @@
   $("st-run").addEventListener("click", runChecks);
 
   // ---------- settings ----------
-  const FIELDS = { "s-prov": "provider", "s-gkey": "geminiKey", "s-gmodel": "geminiModel", "s-dkey": "deepseekKey", "s-dmodel": "deepseekModel", "s-ghtok": "githubToken", "s-cap": "capLang", "s-lang": "aiLang", "s-font": "font" };
+  const FIELDS = { "s-fmt": "format", "s-prov": "provider", "s-gkey": "geminiKey", "s-gmodel": "geminiModel", "s-dkey": "deepseekKey", "s-dmodel": "deepseekModel", "s-ghtok": "githubToken", "s-cap": "capLang", "s-lang": "aiLang", "s-font": "font" };
   function openSettings() {
     for (const [id, k] of Object.entries(FIELDS)) $(id).value = state.settings[k] || "";
     $("s-test-out").textContent = "";
+    refreshFolder();
     show("v-settings");
   }
   function readSettings() { for (const [id, k] of Object.entries(FIELDS)) state.settings[k] = $(id).value.trim(); save(); applyFont(); renderHistory(); }

@@ -1,15 +1,17 @@
 {
   "name": "srk-reach",
   "version": "1.0.0",
-  "description": "SRK Reach — search and read Web, YouTube, Reddit, GitHub, X and RSS from one box, with AI summaries. Android app by ShazVerse Technologies.",
+  "description": "SRK Reach \u2014 search and read Web, YouTube, Reddit, GitHub, X and RSS from one box, with AI summaries. Android app by ShazVerse Technologies.",
   "private": true,
   "license": "MIT",
   "scripts": {
-    "serve": "npx --yes serve www -l 5173"
+    "serve": "npm run vendor && npx --yes serve www -l 5173",
+    "vendor": "node scripts/vendor.js"
   },
   "dependencies": {
     "@capacitor/android": "^7.0.0",
-    "@capacitor/core": "^7.0.0"
+    "@capacitor/core": "^7.0.0",
+    "jspdf": "^4.2.1"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

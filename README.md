@@ -16,6 +16,7 @@
 
 - **✨ Ask AI**: searches the chosen source, reads the top results and writes an answer with numbered sources.
 - **✨ Summarise / Ask about this**: works on anything you open, e.g. a 1-hour lecture transcript.
+- **💾 Save as Word, PDF or text**: transcripts, pages, summaries and AI answers go straight into a folder you choose once (for example Documents/SRK Transcripts). The text is large and dark for easy reading and printing.
 - **🩺 Source check**: tests every source, like `agent-reach doctor`.
 - AI uses **Google Gemini (free key)** or **DeepSeek**. Add your key in ⚙️ Settings. Searching and reading need no key.
 - Everything runs on the phone. There's no server, and your keys stay on the device.

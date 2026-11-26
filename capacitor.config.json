@@ -1,0 +1,13 @@
+{
+  "appId": "com.shazverse.srkreach",
+  "appName": "SRK Reach",
+  "webDir": "www",
+  "android": {
+    "backgroundColor": "#0f1115"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

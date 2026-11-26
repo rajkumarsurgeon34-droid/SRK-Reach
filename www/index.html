@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1115">
+  <title>SRK Reach</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- Home -->
+  <section id="v-home" class="view active">
+    <header class="bar">
+      <img src="icon.png" class="logo-img" alt="">
+      <h1>SRK <span class="logo">Reach</span></h1>
+      <button class="icon" id="btn-status" title="Check sources">🩺</button>
+      <button class="icon" id="btn-settings" title="Settings">⚙️</button>
+    </header>
+    <div class="scroll">
+      <div class="hero">
+        <div class="chips" id="chips"></div>
+        <textarea id="q" rows="2" placeholder="Search the web or paste any link" autocomplete="off" autocapitalize="sentences"></textarea>
+        <div class="row">
+          <button class="btn primary" id="btn-go">🔎 Go</button>
+          <button class="btn" id="btn-ask">✨ Ask AI</button>
+          <button class="btn ghost" id="btn-paste" title="Paste">📋</button>
+        </div>
+        <p class="hint" id="hint"></p>
+      </div>
+      <div id="key-notice" class="notice hidden">To use <b>✨ Ask AI</b> and <b>Summarise</b>, add a free Gemini key in ⚙️ Settings. Searching and reading work without it.</div>
+      <h3 class="section-title" id="hist-title">Recent</h3>
+      <ul id="history" class="list"></ul>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section id="v-results" class="view">
+    <header class="bar">
+      <button class="icon back">←</button>
+      <h2 id="res-title">Results</h2>
+    </header>
+    <div class="scroll" id="res-body"></div>
+  </section>
+
+  <!-- Detail / reader -->
+  <section id="v-detail" class="view">
+    <header class="bar">
+      <button class="icon back">←</button>
+      <h2 id="det-src">Reader</h2>
+      <button class="icon" id="det-copy" title="Copy">📄</button>
+      <button class="icon" id="det-open" title="Open in browser">↗️</button>
+    </header>
+    <div class="scroll" id="det-body"></div>
+    <div class="askbar">
+      <button class="btn small" id="det-sum">✨ Summarise</button>
+      <input id="det-q" placeholder="Ask about this…" autocomplete="off">
+      <button class="btn small primary" id="det-ask">➤</button>
+    </div>
+  </section>
+
+  <!-- AI answer -->
+  <section id="v-answer" class="view">
+    <header class="bar">
+      <button class="icon back">←</button>
+      <h2>✨ Answer</h2>
+      <button class="icon" id="ans-copy" title="Copy">📄</button>
+    </header>
+    <div class="scroll" id="ans-body"></div>
+  </section>
+
+  <!-- Status -->
+  <section id="v-status" class="view">
+    <header class="bar">
+      <button class="icon back">←</button>
+      <h2>🩺 Source check</h2>
+      <button class="text" id="st-run">Run again</button>
+    </header>
+    <div class="scroll"><ul id="st-list" class="list"></ul>
+      <p class="hint pad">Some free sources (Reddit, YouTube captions) sometimes block phones for a while. If one shows ❌, try again later — the others keep working.</p></div>
+  </section>
+
+  <!-- Settings -->
+  <section id="v-settings" class="view">
+    <header class="bar">
+      <button class="icon back">←</button>
+      <h2>Settings</h2>
+      <button class="text" id="s-save">Save</button>
+    </header>
+    <div class="scroll form">
+      <h3>AI (for Ask AI &amp; Summarise)</h3>
+      <label>AI service
+        <select id="s-prov">
+          <option value="gemini">Google Gemini (free tier)</option>
+          <option value="deepseek">DeepSeek</option>
+        </select>
+      </label>
+      <label>Gemini API key
+        <input id="s-gkey" type="password" placeholder="AIza…" autocomplete="off">
+        <small>Free: <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></small>
+      </label>
+      <label>Gemini model
+        <input id="s-gmodel" placeholder="gemini-3.8-flash" autocomplete="off">
+      </label>
+      <label>DeepSeek API key
+        <input id="s-dkey" type="password" placeholder="sk-…" autocomplete="off">
+        <small><a href="https://platform.deepseek.com/api_keys" target="_blank">platform.deepseek.com</a></small>
+      </label>
+      <label>DeepSeek model
+        <input id="s-dmodel" placeholder="deepseek-flash" autocomplete="off">
+      </label>
+      <label>AI answer language
+        <select id="s-lang">
+          <option value="English">English</option>
+          <option value="Tamil">Tamil</option>
+          <option value="Hindi">Hindi</option>
+        </select>
+      </label>
+      <button class="btn" id="s-test">Test AI key</button>
+      <p class="hint" id="s-test-out"></p>
+
+      <h3>Sources</h3>
+      <label>GitHub token (optional)
+        <input id="s-ghtok" type="password" placeholder="ghp_… — raises the limit from 60 to 5,000 an hour" autocomplete="off">
+      </label>
+      <label>YouTube caption language
+        <select id="s-cap">
+          <option value="en">English</option>
+          <option value="ta">Tamil</option>
+          <option value="hi">Hindi</option>
+        </select>
+      </label>
+
+      <h3>Reading</h3>
+      <label>Text size
+        <select id="s-font">
+          <option value="16">Normal</option>
+          <option value="18">Large</option>
+          <option value="20">Extra large</option>
+          <option value="23">Huge</option>
+        </select>
+      </label>
+      <button class="btn ghost" id="s-clear">Clear recent searches</button>
+
+      <p class="hint about">SRK Reach · ShazVerse Technologies<br>Reading and search ideas adapted from Agent Reach (Panniantong, MIT licence). Your keys stay on this phone.</p>
+    </div>
+  </section>
+
+  <div id="loading" class="loading hidden"><div class="spinner"></div><p id="loading-text">Working…</p></div>
+  <div id="toast" class="toast hidden"></div>
+</div>
+<script src="sources.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

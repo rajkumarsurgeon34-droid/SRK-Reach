@@ -155,19 +155,51 @@
       source: "youtube",
     }));
   }
-  function parseCaptions(xml) {
-    const doc = new DOMParser().parseFromString(xml, "text/xml");
-    let nodes = Array.from(doc.getElementsByTagName("text"));
-    if (!nodes.length) nodes = Array.from(doc.getElementsByTagName("p"));
-    const lines = [];
-    for (const n of nodes) {
-      const t = decodeEntities((n.textContent || "").replace(/\s+/g, " ").trim());
-      if (t && t !== lines[lines.length - 1]) lines.push(t);
-    }
-    // join into readable paragraphs of ~8 caption lines
+  const mmss = (ms) => { const t = Math.floor(ms / 1000), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(sec).padStart(2, "0"); };
+  // Words with start times → readable paragraphs with [mm:ss] at each start.
+  function toParagraphs(words) {
     const paras = [];
-    for (let i = 0; i < lines.length; i += 8) paras.push(lines.slice(i, i + 8).join(" "));
+    let cur = [], start = 0, last = 0, count = 0;
+    const flush = () => { if (cur.length) paras.push("[" + mmss(start) + "] " + cur.join(" ").replace(/\s+/g, " ").replace(/\s([,.?!;:])/g, "$1").trim()); cur = []; count = 0; };
+    for (const w of words) {
+      if (!cur.length) start = w.t;
+      else if (w.t - last > 2500 || (count > 70 && /[.?!]$/.test(cur[cur.length - 1])) || count > 110) { flush(); start = w.t; }
+      cur.push(w.text); count += w.text.split(" ").length; last = w.t;
+    }
+    flush();
     return paras.join("\n\n");
+  }
+  // YouTube "json3" captions: events[].segs[].utf8. Auto-captions come word by word; we join them cleanly.
+  function parseJson3(j) {
+    const words = [];
+    for (const ev of j.events || []) {
+      if (!ev.segs) continue;
+      const text = ev.segs.map((sg) => sg.utf8 || "").join("").replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+      if (!text || text === "[Music]" && words.length && words[words.length - 1].text === "[Music]") continue;
+      words.push({ t: ev.tStartMs || 0, text: decodeEntities(text) });
+    }
+    return toParagraphs(words);
+  }
+  // Older XML captions (<text start="1.2">…</text>) as a backup.
+  function parseXml(xml) {
+    const doc = new DOMParser().parseFromString(xml, "text/xml");
+    const words = [];
+    for (const n of Array.from(doc.getElementsByTagName("text"))) {
+      const text = decodeEntities(decodeEntities((n.textContent || "").replace(/\s+/g, " ").trim()));
+      if (text) words.push({ t: Math.round(parseFloat(n.getAttribute("start") || "0") * 1000), text });
+    }
+    return toParagraphs(words);
+  }
+  async function fetchCaptions(baseUrl) {
+    const u = new URL(baseUrl);
+    u.searchParams.set("fmt", "json3");
+    try {
+      const raw = await getText(u.toString(), { headers: { "User-Agent": UA_PHONE } });
+      const out = parseJson3(JSON.parse(raw));
+      if (out) return out;
+    } catch (e) { /* try XML */ }
+    u.searchParams.delete("fmt");
+    return parseXml(await getText(u.toString(), { headers: { "User-Agent": UA_PHONE } }));
   }
   async function ytRead(url, lang = "en") {
     const id = ytId(url);
@@ -196,14 +228,20 @@
       source: "youtube",
     });
     const tracks = (((player.captions || {}).playerCaptionsTracklistRenderer || {}).captionTracks) || [];
-    const rank = (t) => (t.languageCode === lang ? 0 : t.languageCode.startsWith(lang) ? 1 : t.languageCode === "en" ? 2 : 3) * 2 + (t.kind === "asr" ? 1 : 0);
+    // Prefer human-made captions (far fewer wrong words) over auto-generated ones.
+    const langScore = (t) => (t.languageCode === lang ? 0 : t.languageCode.startsWith(lang) ? 1 : t.languageCode.startsWith("en") ? 2 : 3);
+    const rank = (t) => (langScore(t) === 3 ? 20 : 0) + (t.kind === "asr" ? 10 : 0) + langScore(t);
     tracks.sort((a, b) => rank(a) - rank(b));
     let transcript = "", note = "";
     for (const t of tracks.slice(0, 3)) {
       if (/[&?]exp=xpe/.test(t.baseUrl)) { note = "YouTube is locking captions for this video right now."; continue; }
       try {
-        transcript = parseCaptions(await getText(t.baseUrl.replace("&fmt=srv3", ""), { headers: { "User-Agent": UA_PHONE } }));
-        if (transcript) { header.meta += (header.meta ? " · " : "") + "captions: " + (runs(t.name) || t.languageCode); break; }
+        transcript = await fetchCaptions(t.baseUrl);
+        if (transcript) {
+          header.meta += (header.meta ? " · " : "") + "captions: " + (runs(t.name) || t.languageCode) + (t.kind === "asr" && !/auto/i.test(runs(t.name)) ? " (auto-generated)" : "");
+          header.autoCaptions = t.kind === "asr";
+          break;
+        }
       } catch (e) { note = "Captions couldn't be downloaded."; }
     }
     if (!tracks.length) note = "This video has no captions.";

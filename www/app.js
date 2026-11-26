@@ -93,10 +93,10 @@
 
   // ---------- AI ----------
   const hasKey = () => (state.settings.provider === "deepseek" ? !!state.settings.deepseekKey : !!state.settings.geminiKey);
-  async function aiCall(system, prompt) {
+  async function aiCall(system, prompt, keepLang) {
     const s = state.settings;
     if (!hasKey()) throw new Error("Add your " + (s.provider === "deepseek" ? "DeepSeek" : "Gemini") + " API key in ⚙️ Settings first.");
-    const sys = system + " Reply in " + (s.aiLang || "English") + ".";
+    const sys = keepLang ? system : system + " Reply in " + (s.aiLang || "English") + ".";
     if (s.provider === "deepseek") {
       const res = await fetch(DEEPSEEK_BASE + "/chat/completions", {
         method: "POST",
@@ -224,7 +224,9 @@
     current = { ...it, summaries: [] };
     const info = srcInfo(it.source);
     $("det-src").textContent = info.icon + " " + info.label;
+    const isTranscript = it.source === "youtube" && /^TRANSCRIPT/.test(it.text || "");
     $("det-body").innerHTML = '<div class="reader"><div id="det-ai"></div><h1>' + esc(it.title || "(untitled)") + "</h1>" +
+      (isTranscript ? '<div class="fixbar" id="fixbar"><span>' + (it.autoCaptions ? "These are YouTube's <b>auto-generated</b> captions, which often mishear words, especially medical terms." : "Want cleaner text?") + '</span><button class="btn small primary" id="det-fix">✨ Fix with AI</button></div>' : "") +
       '<div class="m">' + esc([it.author, it.date, it.meta].filter(Boolean).join(" · ")) + "</div>" +
       '<div class="body">' + esc(it.text || "(nothing to show)") + "</div></div>";
     $("det-q").value = "";
@@ -253,6 +255,50 @@
     finally { loading(false); }
   }
   $("det-sum").addEventListener("click", () => aboutCurrent(""));
+
+  // ---------- fix auto-caption transcripts with AI (spelling, medical terms, punctuation) ----------
+  async function fixTranscript() {
+    if (!current || current.fixed) return;
+    if (!hasKey()) { toast("Add your AI key in Settings first"); openSettings(); return; }
+    const full = current.text || "";
+    const m = full.match(/^TRANSCRIPT\n\n([\s\S]*?)(\n\n— — —\nDESCRIPTION[\s\S]*)?$/);
+    if (!m) return;
+    const paras = m[1].split("\n\n");
+    const chunks = [];
+    let buf = [];
+    for (const p of paras) { buf.push(p); if (buf.join("\n\n").length > 5000) { chunks.push(buf.join("\n\n")); buf = []; } }
+    if (buf.length) chunks.push(buf.join("\n\n"));
+    const system = "You correct YouTube auto-generated caption transcripts. The video is titled: \"" + (current.title || "") + "\" by " + (current.author || "unknown") + ". " +
+      "Fix misheard and misspelt words (especially medical, surgical and anatomical terms and names), add correct punctuation and capital letters, and remove filler repeats. " +
+      "Do NOT summarise, shorten, add facts or change the meaning. Keep the same language as the input. Keep every [mm:ss] marker at the start of its paragraph. Output only the corrected transcript.";
+    const out = [];
+    loading(true, "Fixing transcript…");
+    try {
+      for (let i = 0; i < chunks.length; i++) {
+        $("loading-text").textContent = "Fixing transcript… part " + (i + 1) + " of " + chunks.length;
+        const prev = out.length ? "\n\n(For context only, the previous part ended: \"" + out[out.length - 1].slice(-300) + "\")" : "";
+        out.push((await aiCall(system, chunks[i] + prev, true)).trim());
+      }
+      current.originalText = full;
+      current.text = "TRANSCRIPT (corrected by AI)\n\n" + out.join("\n\n") + (m[2] || "");
+      current.fixed = true;
+      document.querySelector("#det-body .body").textContent = current.text;
+      $("fixbar").innerHTML = "<span>✅ Corrected by AI. Saving (💾) now uses this version.</span>" + '<button class="btn small" id="det-orig">Show original</button>';
+      toast("Transcript fixed");
+    } catch (e) { toast(e.message); }
+    finally { loading(false); }
+  }
+  $("det-body").addEventListener("click", (e) => {
+    if (e.target.id === "det-fix") fixTranscript();
+    if (e.target.id === "det-orig" && current && current.originalText) {
+      const showingFixed = current.text !== current.originalText;
+      const fixedText = current.fixedText || current.text;
+      current.fixedText = fixedText;
+      current.text = showingFixed ? current.originalText : fixedText;
+      document.querySelector("#det-body .body").textContent = current.text;
+      e.target.textContent = showingFixed ? "Show corrected" : "Show original";
+    }
+  });
   $("det-ask").addEventListener("click", () => { const q = $("det-q").value.trim(); if (q) { $("det-q").value = ""; aboutCurrent(q); } else $("det-q").focus(); });
   $("det-q").addEventListener("keydown", (e) => { if (e.key === "Enter") $("det-ask").click(); });
 

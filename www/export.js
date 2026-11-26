@@ -11,7 +11,7 @@
     return n || "SRK Reach";
   }
   const plainMd = (s) => String(s || "").replace(/\*\*([^*]+)\*\*/g, "$1").replace(/(^|[^*])\*([^*\n]+)\*/g, "$1$2").replace(/`([^`]+)`/g, "$1").replace(/^#{1,4}\s+/gm, "").replace(/^\s*[-*]\s+/gm, "• ");
-  const isHeading = (l) => /^[A-Z][A-Z &]{3,30}$/.test(l.trim());
+  const isHeading = (l) => /^[A-Z][A-Z &]{3,30}( \(corrected by AI\))?$/.test(l.trim());
   const isRule = (l) => /^[—\-–\s]{3,}$/.test(l.trim());
 
   // Builds the list of blocks every format prints: {kind: title|meta|h|p, text}
@@ -28,7 +28,7 @@
     let first = true;
     for (const l of String(doc.text || "").split("\n")) {
       if (!l.trim() || isRule(l)) continue;
-      if (isHeading(l)) { out.push({ kind: "h", text: l.trim().charAt(0) + l.trim().slice(1).toLowerCase() }); first = false; continue; }
+      if (isHeading(l)) { out.push({ kind: "h", text: l.trim().replace(/^[A-Z][A-Z &]+/, (w) => w.charAt(0) + w.slice(1).toLowerCase()) }); first = false; continue; }
       if (first && (doc.summaries || []).length) { out.push({ kind: "h", text: "Full text" }); }
       first = false;
       out.push({ kind: "p", text: l.trim() });
